@@ -8,9 +8,7 @@ const request = indexedDB.open('PlantDB', 1);
 
 request.onupgradeneeded = e => {
   db = e.target.result;
-  if (!db.objectStoreNames.contains('plants')) {
-    db.createObjectStore('plants', { keyPath: 'id', autoIncrement: true });
-  }
+  db.createObjectStore('plants', { keyPath: 'id', autoIncrement: true });
 };
 
 function loadPlants() {
@@ -64,11 +62,30 @@ function renderPlantList() {
 function openAddPlantDialog() {
   document.getElementById('dialog-title').textContent = 'Add Plant';
   document.getElementById('dialog-body').innerHTML = `
+  <div class="card" style="width: 200px;">
+        <img id="photoPreviewImage" src="" class="card-img-top" alt="Photo Preview" style="height: 200px; object-fit: cover;">
+        
+      </div>
     <input class="form-control my-1" id="plant-name" placeholder="Name" />
     <input class="form-control my-1" id="plant-location" placeholder="Location" />
     <input type="file" accept="image/*" capture="environment" class="form-control my-1" id="plant-photo" />
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#cameraModal">Open Camera</button>
+    <button class="btn btn-primary" id="openCameraBtn">Open Camera</button>
     `;
+    
+  const previewImage = document.getElementById('photoPreviewImage');
+  const photoInput = document.getElementById('plant-photo');
+  
+  photoInput.addEventListener('change', () => {
+    const file = photoInput.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        previewImage.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+  let cameraBlob=null;
   document.getElementById('dialog-submit').onclick = () => {
     const name = document.getElementById('plant-name').value;
     const location = document.getElementById('plant-location').value;
@@ -76,6 +93,7 @@ function openAddPlantDialog() {
     const reader = new FileReader();
 
     const addPlant = (image) => {
+      console.log(image)
       const newPlant = { name, location, image, size: 0, logs: [], sizeLogs: [] };
       const tx = db.transaction('plants', 'readwrite');
       const store = tx.objectStore('plants');
@@ -85,13 +103,41 @@ function openAddPlantDialog() {
         dialog.hide();
       };
     };
-
-    if (file) {
+    console.log(previewImage, cameraBlob)
+    if (cameraBlob!=null) {
+      // Prefer camera photo if availablea
+      reader.onload = e => addPlant(e.target.result);
+      reader.readAsDataURL(cameraBlob);
+    } else if (file) {
       reader.onload = e => addPlant(e.target.result);
       reader.readAsDataURL(file);
     } else {
       addPlant('');
     }
+  };
+  function openCameraModal(){
+    const cameraModal = new bootstrap.Modal(document.getElementById('cameraModal'), {
+      backdrop: false, // Don't interfere with the existing backdrop
+      focus: false     // Avoid taking focus from the current modal
+    });
+    cameraModal.show();
+  }
+  document.getElementById('openCameraBtn').addEventListener('click', openCameraModal);
+  previewImage.addEventListener('click', openCameraModal);
+  
+  onPhotoAccepted = function (blob) {
+    console.log("Photo accepted! Blob size:", blob.size);
+
+    const imageUrl = URL.createObjectURL(blob);
+    const imageElement = document.getElementById('photoPreviewImage');
+    imageElement.src = imageUrl;
+    cameraBlob = blob;
+
+    /*const previewModal = new bootstrap.Modal(document.getElementById('photoPreviewModal'), {
+      backdrop: false,
+      focus: false
+    });
+    previewModal.show();*/
   };
   dialog.show();
 }

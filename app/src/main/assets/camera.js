@@ -5,9 +5,15 @@ const captureBtn = document.getElementById('captureBtn');
 const acceptBtn = document.getElementById('acceptBtn');
 const redoBtn = document.getElementById('redoBtn');
 
+const switchCameraBtn = document.getElementById('switchCameraBtn');
+const toggleFlashBtn = document.getElementById('toggleFlashBtn');
+
 // IndexedDB setup
 const dbName = 'PhotoDB';
 let camdb;
+let cameras = [];
+let currentStream = null;
+let currentCameraIndex = 0;
 const openDB = indexedDB.open(dbName, 1);
 openDB.onupgradeneeded = () => {
     camdb = openDB.result;
@@ -20,35 +26,76 @@ function resetView() {
     previewButtons.style.display = 'none';
     captureBtn.style.display = 'inline-block';
 }
-// Open camera when modal opens
-document.getElementById('cameraModal').addEventListener('shown.bs.modal', async () => {
-    //const stream = await navigator.mediaDevices.getUserMedia({ video: true });
 
-    var constraints = { video: { width: 800, height: 800, facingMode: "environment" } };
+async function getCameras() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  cameras = devices.filter(d => d.kind === 'videoinput');
+  console.log(cameras)
+}
+async function startCamera(index = 0, withTorch = false) {
+    stopStream();
+    const deviceId = cameras[index]?.deviceId;
+    const constraints = { video: {
+          deviceId: deviceId ? { exact: deviceId } : undefined,
+          width: 800,
+          height: 800
+    }};
 
     navigator.mediaDevices.getUserMedia(constraints)
-    .then(function(mediaStream) {
-      var video = document.querySelector('video');
-      video.srcObject = mediaStream;
-      video.onloadedmetadata = function(e) {
-        video.play();
-      };
-    })
-    .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
+        .then(function (mediaStream) {
+            var video = document.querySelector('video');
+            video.srcObject = mediaStream;
+            currentStream = mediaStream;
+
+            video.onloadedmetadata = function (e) {
+                video.play();
+            };
+        })
+        .catch(function (err) { 
+            console.log(err.name + ": " + err.message); 
+        }); // always check for errors at the end.*/
+
+    //currentStream = await cameras[0].getUserMedia(constraints);
+    //video.srcObject = currentStream;
+}
+// Open camera when modal opens
+document.getElementById('cameraModal').addEventListener('shown.bs.modal', async () => {
+    //const stream = await navigator.mediaDevices.g etUserMedia({ video: true });
+
+    /*var constraints = { video: { width: 800, height: 800 },facingMode: "environment"};
+
+    navigator.mediaDevices.getUserMedia(constraints)
+        .then(function (mediaStream) {
+            var video = document.querySelector('video');
+            video.srcObject = mediaStream;
+            currentStream = mediaStream;
+
+            video.onloadedmetadata = function (e) {
+                video.play();
+            };
+        })
+        .catch(function (err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.*/
+
+    startCamera(currentCameraIndex);
 
 
     //video.srcObject = stream;
 });
-
-// Stop camera when modal closes
-document.getElementById('cameraModal').addEventListener('hidden.bs.modal', () => {
-    const stream = video.srcObject;
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+function stopStream() {
+    currentStream = video.srcObject;
+    if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
         video.srcObject = null;
+        currentStream = null;
     }
     resetView();
+}
+// Stop camera when modal closes
+document.getElementById('cameraModal').addEventListener('hidden.bs.modal', () => {
+    stopStream();
 });
+
+
 
 // Capture and store photo
 captureBtn.addEventListener('click', () => {
@@ -94,7 +141,32 @@ acceptBtn.addEventListener('click', () => {
 });
 
 // Example callback
-function onPhotoAccepted(blob) {
+onPhotoAccepted = function (blob) {
     console.log("Photo accepted! Blob size:", blob.size);
     // You can do anything here with the blob, e.g., upload to server
 }
+
+async function toggleFlash() {
+    if (!currentStream) return;
+    const track = currentStream.getVideoTracks()[0];
+    const capabilities = track.getCapabilities();
+    if (capabilities.torch) {
+        flashOn = !flashOn;
+        await track.applyConstraints({ advanced: [{ torch: flashOn }] });
+        toggleFlashBtn.classList.toggle('btn-outline-warning', !flashOn);
+    } else {
+        //alert("Flash not supported on this device.");
+    }
+}
+
+switchCameraBtn.addEventListener('click', async () => {
+    getCameras();
+    if (cameras.length < 2) {
+        console.log("No other camera found.");
+        return; //alert("No other camera found.");
+    }
+    currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+    await startCamera(currentCameraIndex);
+});
+
+toggleFlashBtn.addEventListener('click', toggleFlash);

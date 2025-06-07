@@ -247,3 +247,79 @@ function openSettings() {
     settingsModal.show();
   });
 }
+
+function confirmDeletePlant() {
+  if (confirm('Are you sure you want to delete this plant? This action cannot be undone.')) {
+    deletePlant(selectedPlantIndex);
+  }
+}
+
+function deletePlant(index) {
+  const plant = plants[index];
+  const tx = db.transaction('plants', 'readwrite');
+  const store = tx.objectStore('plants');
+  const deleteRequest = store.delete(plant.id);
+
+  deleteRequest.onsuccess = () => {
+    plants.splice(index, 1);
+    showMainScreen();
+    loadPlants();
+  };
+
+  deleteRequest.onerror = () => {
+    alert('Failed to delete plant.');
+  };
+}
+
+function exportData() {
+  const tx1 = db.transaction('plants', 'readonly');
+  const store1 = tx1.objectStore('plants');
+
+  const plantsRequest = store1.getAll();
+
+  plantsRequest.onsuccess = () => {
+    const plantsData = plantsRequest.result;
+    const exportObj = plantsData;
+    const blob = new Blob([JSON.stringify(exportObj)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'plant_data.json';
+    a.click();
+    
+  };
+}
+
+function blobToBase64(blob) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function importData(file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const data = JSON.parse(reader.result);
+    const plants = data;
+
+    const tx1 = db.transaction('plants', 'readwrite');
+    const store1 = tx1.objectStore('plants');
+    plants.forEach(p => store1.add(p));
+
+    await tx1.complete;
+
+    loadPlants(); // reload UI
+    alert('Import complete!');
+  };
+  reader.readAsText(file);
+}
+
+function base64ToBlob(base64) {
+  const [prefix, data] = base64.split(',');
+  const mime = prefix.match(/:(.*?);/)[1];
+  const binary = atob(data);
+  const array = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+  return new Blob([array], { type: mime });
+}

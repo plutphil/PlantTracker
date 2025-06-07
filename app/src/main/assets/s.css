@@ -1,3 +1,6 @@
 
 body { padding-bottom: 5rem; }
 #plant-image { max-width: 100%; height: auto; }
+#cameraModal .modal-dialog {
+  z-index: 1065; /* Bootstrap default is 1050 */
+}
